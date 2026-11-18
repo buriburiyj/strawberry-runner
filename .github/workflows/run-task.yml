@@ -1,0 +1,51 @@
+name: run-task
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: "Task id (A-Z a-z 0-9 . _ : -, max 120) e.g. 20261118-1605-health"
+        required: true
+        type: string
+      mode:
+        description: "Execution mode"
+        required: true
+        default: http_check
+        type: choice
+        options:
+          - http_check
+          - python_script
+          - shell_cmd
+      payload_b64:
+        description: "Base64 of the UTF-8 payload (URL / JSON / Python / shell). This is NOT encryption - inputs are visible on a public repo."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run-task-${{ inputs.task_id }}
+  cancel-in-progress: false
+
+jobs:
+  run-task:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Execute task
+        env:
+          STRAWBERRY_URL: ${{ secrets.STRAWBERRY_URL }}
+          STRAWBERRY_TOKEN: ${{ secrets.STRAWBERRY_TOKEN }}
+          TASK_ID: ${{ inputs.task_id }}
+          MODE: ${{ inputs.mode }}
+          PAYLOAD_B64: ${{ inputs.payload_b64 }}
+        run: python3 scripts/execute.py
