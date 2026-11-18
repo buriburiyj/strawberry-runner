@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local scratch
+*.log
+.DS_Store
+
+# Never commit secrets - the runner gets them from GitHub Actions Secrets
+.dev.vars
+.env
+.env.*
+!.env.example
