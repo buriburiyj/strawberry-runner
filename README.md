@@ -202,7 +202,46 @@ TASK_ID=dry-1 MODE=shell_cmd PAYLOAD_B64="$(printf '%s' 'echo hi' | base64 | tr 
 잘못된 base64·task_id·mode·64KB 초과 페이로드 거부, 401/서버 다운 시 종료 코드 3,
 **페이로드·본문·토큰이 stdout/stderr에 절대 안 나오는지**, 워크플로 파일의 트리거·권한·env 구성.
 
-## 8. 문제 해결
+## 8. 무료 AI·0원 혜택 수집기 (`scripts/collect_deals.py`)
+
+이 러너의 첫 번째 상시 작업. 공개 소스를 **실제로 열어 파싱한 값만** 모아 JSON 한 덩어리로
+stdout에 찍는다. 준비된 소스 13곳(2026-11-18 실측):
+
+| 구역 | 무엇을 | 소스 |
+| --- | --- | --- |
+| `catalogs` | 무료 모델 개수·ID를 가격표 필드로 직접 집계 | OpenRouter · NVIDIA NIM · Kilo · OVHcloud · Pollinations |
+| `offers` | 공식 페이지의 무료 조건 문장을 그대로 발췌 | Oracle Cloud · Google Cloud · Cloudflare Workers · GitHub Copilot · AWS Kiro |
+| `free_games` | 지금·예정 0원 배포 | Epic Games(KR) · Steam 100% 할인(KR) |
+| `curated` | `buriburiyj.github.io/free-deals` 기존 혜택 22건 생존·마감 확인 | 사이트의 data.json |
+
+```bash
+python3 scripts/collect_deals.py                 # stdout에 JSON 1개(약 11KB, 1~5초)
+python3 scripts/collect_deals.py --pretty --out deals.json
+python3 scripts/collect_deals.py --only catalogs,free_games
+python3 tests/test_collect_deals.py              # 파서 단위 테스트 17개(네트워크 불필요)
+```
+
+러너에서 돌릴 때는 페이로드를 작게 유지하려고 저장소의 스크립트를 직접 받아 실행한다:
+
+```bash
+gh workflow run run-task.yml -R buriburiyj/strawberry-runner \
+  -f task_id=deals-$(date -u +%Y%m%dT%H%MZ) -f mode=shell_cmd \
+  -f payload_b64="$(printf '%s' 'curl -fsSL https://raw.githubusercontent.com/buriburiyj/strawberry-runner/main/scripts/collect_deals.py -o /tmp/c.py && python3 /tmp/c.py' | base64 | tr -d '\n')"
+```
+
+결과는 `runner:<task_id>` 의 `stdout` 에 JSON 문자열로 저장된다. 그 JSON을 D1에 누적
+(`deals:latest`, `deals:run:<run_id>`, `POST /notes`)하고 사이트(`free-deals/live.json`)에
+반영하는 일은 이 러너가 아니라 **예약 작업**이 한다(토큰을 러너 태스크에 넘기지 않는 설계
+때문). 그 예약 작업 정의는 Pickle 쪽 `scheduled-actions/` 에 있다.
+
+### 이 스크립트가 지키는 선
+
+- 토큰·API 키를 쓰지 않는다. 비밀값이 필요 없는 공개 페이지만 본다.
+- 추측하지 않는다. 파싱 실패는 `sources[].error`, 문구 없음은 `note` 로 남고 값은 `null`/빈 배열.
+- stdout 15KB 상한. 넘으면 목록 개수와 발췌 길이를 줄이고, 그래도 넘으면 상세만 비운다.
+- 소스 한 곳이 죽어도 나머지는 계속 간다(스레드 8개, 소스별 타임아웃 20초).
+
+## 9. 문제 해결
 
 | 증상 | 원인 / 해결 |
 | --- | --- |
