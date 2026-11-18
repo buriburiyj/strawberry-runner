@@ -11,7 +11,10 @@
 strawberry-runner/
 ├── .github/workflows/run-task.yml   # 트리거·권한·env 정의
 ├── scripts/execute.py               # 실제 실행 + 결과 전송 (표준 라이브러리만)
+├── scripts/collect_deals.py         # 무료 AI·0원 혜택 실측 수집기
+├── scripts/daily_seed.py            # NEON CORE 데일리 시드 생성기
 ├── tests/test_execute.py            # 모의 서버로 돌리는 로컬 E2E 테스트 84개
+├── tests/test_daily_seed.py         # 시드 재현성·분포 테스트 16개
 └── README.md
 ```
 
@@ -241,7 +244,33 @@ gh workflow run run-task.yml -R buriburiyj/strawberry-runner \
 - stdout 15KB 상한. 넘으면 목록 개수와 발췌 길이를 줄이고, 그래도 넘으면 상세만 비운다.
 - 소스 한 곳이 죽어도 나머지는 계속 간다(스레드 8개, 소스별 타임아웃 20초).
 
-## 9. 문제 해결
+## 9. NEON CORE 데일리 시드 생성기 (`scripts/daily_seed.py`)
+
+`buriburiyj.github.io/neon-core/` 3D 아레나 게임의 **오늘의 시드**를 만든다.
+날짜 하나로 결정적(deterministic)이라, 같은 날짜면 누가 언제 돌려도 같은 값이 나온다.
+
+```bash
+python3 scripts/daily_seed.py --pretty          # 오늘(KST) 시드
+python3 scripts/daily_seed.py --date 2026-12-25 # 특정 날짜
+python3 scripts/daily_seed.py --emit-tables     # 브라우저 JS가 쓰는 테이블(단일 출처)
+python3 tests/test_daily_seed.py                # 16개 검사
+```
+
+출력: 테마 팔레트 6색, 아레나 크기, 보스(코드네임·행동 패턴·체력), 모디파이어 2~3개와
+그 효과가 합쳐진 `spawn` 배율, 웨이브 수, 목표 점수, 음계·템포, 한 줄 인용.
+
+러너에서 돌릴 때:
+
+```bash
+gh workflow run run-task.yml -R buriburiyj/strawberry-runner \
+  -f task_id=seed-$(date -u +%Y%m%dT%H%MZ) -f mode=shell_cmd \
+  -f payload_b64="$(printf '%s' 'curl -fsSL https://raw.githubusercontent.com/buriburiyj/strawberry-runner/main/scripts/daily_seed.py -o /tmp/s.py && python3 /tmp/s.py' | base64 | tr -d '\n')"
+```
+
+네트워크를 쓰지 않고, 토큰도 쓰지 않는다(순수 함수). 결과 JSON은 `runner:<task_id>` 의
+`stdout` 에 담기고, 바깥에서 D1(`surprise:daily`)·사이트(`neon-core/daily.json`)로 옮긴다.
+
+## 10. 문제 해결
 
 | 증상 | 원인 / 해결 |
 | --- | --- |
